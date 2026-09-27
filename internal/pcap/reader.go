@@ -41,9 +41,9 @@ func Open(filename string) (*Reader, error) {
 
 	switch magic {
 	case 0xa1b2c3d4:
-		order = binary.BigEndian
-	case 0xd4c3b2a1:
 		order = binary.LittleEndian
+	case 0xd4c3b2a1:
+		order = binary.BigEndian
 	default:
 		file.Close()
 		return nil, fmt.Errorf("unsupported PCAP format: magic number 0x%x", magic)

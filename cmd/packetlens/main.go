@@ -37,6 +37,20 @@ func main() {
 		}
 
 		packetNumber++
+		ethernet, err := pcap.ParseEthernet(packet.Data)
+
+		if err != nil {
+			log.Println("Ethernet parsing failed:", err)
+			continue
+		}
+
+		fmt.Printf(
+			"Ethernet | Src: %s | Dst: %s | EtherType: 0x%x (%s)\n",
+			ethernet.SourceMAC,
+			ethernet.DestinationMAC,
+			ethernet.EtherType,
+			pcap.ProtocolName(ethernet.EtherType),
+		)
 
 		fmt.Printf(
 			"Packet #%d | Time: %s | Captured: %d bytes | Original: %d bytes\n",
