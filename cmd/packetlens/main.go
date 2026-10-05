@@ -62,12 +62,12 @@ func main() {
 		)
 		if ethernet.EtherType == 0x0800 {
 			ipv4, err := pcap.ParseIPv4(packet.Data[14:])
-
+		
 			if err != nil {
 				log.Println("IPv4 parsing failed:", err)
 				continue
 			}
-
+		
 			fmt.Printf(
 				"IPv4 | Src: %s | Dst: %s | Protocol: %d | Length: %d\n",
 				ipv4.SourceIP,
@@ -75,44 +75,61 @@ func main() {
 				ipv4.Protocol,
 				ipv4.TotalLength,
 			)
-
+		
 			if ipv4.Protocol == 6 {
-				tcpStart := 14 + int(ipv4.HeaderLength)
-
-				tcp, err := pcap.ParseTCP(packet.Data[tcpStart:])
-
+				ipStart := 14
+				ipEnd := ipStart + int(ipv4.TotalLength)
+			
+				if ipEnd > len(packet.Data) {
+					log.Println("IPv4 packet extends beyond captured data")
+					continue
+				}
+			
+				tcpStart := ipStart + int(ipv4.HeaderLength)
+			
+				if tcpStart > ipEnd {
+					log.Println("invalid TCP start position")
+					continue
+				}
+			
+				tcpData := packet.Data[tcpStart:ipEnd]
+			
+				tcp, err := pcap.ParseTCP(tcpData)
+			
 				if err != nil {
 					log.Println("TCP parsing failed:", err)
 					continue
 				}
-
+			
 				fmt.Printf(
-					"TCP | Src Port: %d | Dst Port: %d\n",
+					"TCP | Src Port: %d | Dst Port: %d | Header: %d | Payload: %d bytes\n",
 					tcp.SourcePort,
 					tcp.DestinationPort,
+					tcp.HeaderLength,
+					len(tcp.Payload),
 				)
-
+			
 				source := pcap.Endpoint{
 					IP:   ipv4.SourceIP.String(),
 					Port: tcp.SourcePort,
 				}
-
+			
 				destination := pcap.Endpoint{
 					IP:   ipv4.DestinationIP.String(),
 					Port: tcp.DestinationPort,
 				}
-
+			
 				flow, direction, isNew := tracker.Track(
 					source,
 					destination,
 					ipv4.Protocol,
 					uint64(packet.CapturedLength),
 				)
-
+			
 				if isNew {
 					fmt.Println("NEW FLOW")
 				}
-
+			
 				fmt.Printf(
 					"Flow | %s:%d ↔ %s:%d | Packets: %d | Bytes: %d | Direction: %d\n",
 					flow.Key.A.IP,
@@ -123,6 +140,18 @@ func main() {
 					flow.Bytes,
 					direction,
 				)
+
+				fmt.Printf(
+					"TCP | Src Port: %d | Dst Port: %d | Header: %d | Payload: %d bytes\n",
+					tcp.SourcePort,
+					tcp.DestinationPort,
+					tcp.HeaderLength,
+					len(tcp.Payload),
+				)
+				
+				if len(tcp.Payload) > 0 {
+					fmt.Printf("Payload bytes: %x\n", tcp.Payload)
+				}
 			}
 		}
 	}
