@@ -25,6 +25,8 @@ func main() {
 
 	packetNumber := 0
 	tracker := pcap.NewFlowTracker()
+	streamTracker := pcap.NewTCPStreamTracker()
+	reportedTLS := make(map[pcap.TCPStreamKey]bool)
 
 	for {
 		packet, err := reader.NextPacket()
@@ -60,100 +62,51 @@ func main() {
 			packet.CapturedLength,
 			packet.OriginalLength,
 		)
-		if ethernet.EtherType == 0x0800 {
+
+		var (
+			sourceIP       string
+			destinationIP  string
+			protocol       uint8
+			ipHeaderLength int
+			ipTotalLength  int
+		)
+
+		switch ethernet.EtherType {
+		case 0x0800: // IPv4
 			ipv4, err := pcap.ParseIPv4(packet.Data[14:])
-		
 			if err != nil {
 				log.Println("IPv4 parsing failed:", err)
 				continue
 			}
-		
-			fmt.Printf(
-				"IPv4 | Src: %s | Dst: %s | Protocol: %d | Length: %d\n",
-				ipv4.SourceIP,
-				ipv4.DestinationIP,
-				ipv4.Protocol,
-				ipv4.TotalLength,
-			)
-		
-			if ipv4.Protocol == 6 {
-				ipStart := 14
-				ipEnd := ipStart + int(ipv4.TotalLength)
-			
-				if ipEnd > len(packet.Data) {
-					log.Println("IPv4 packet extends beyond captured data")
-					continue
-				}
-			
-				tcpStart := ipStart + int(ipv4.HeaderLength)
-			
-				if tcpStart > ipEnd {
-					log.Println("invalid TCP start position")
-					continue
-				}
-			
-				tcpData := packet.Data[tcpStart:ipEnd]
-			
-				tcp, err := pcap.ParseTCP(tcpData)
-			
-				if err != nil {
-					log.Println("TCP parsing failed:", err)
-					continue
-				}
-			
-				fmt.Printf(
-					"TCP | Src Port: %d | Dst Port: %d | Header: %d | Payload: %d bytes\n",
-					tcp.SourcePort,
-					tcp.DestinationPort,
-					tcp.HeaderLength,
-					len(tcp.Payload),
-				)
-			
-				source := pcap.Endpoint{
-					IP:   ipv4.SourceIP.String(),
-					Port: tcp.SourcePort,
-				}
-			
-				destination := pcap.Endpoint{
-					IP:   ipv4.DestinationIP.String(),
-					Port: tcp.DestinationPort,
-				}
-			
-				flow, direction, isNew := tracker.Track(
-					source,
-					destination,
-					ipv4.Protocol,
-					uint64(packet.CapturedLength),
-				)
-			
-				if isNew {
-					fmt.Println("NEW FLOW")
-				}
-			
-				fmt.Printf(
-					"Flow | %s:%d ↔ %s:%d | Packets: %d | Bytes: %d | Direction: %d\n",
-					flow.Key.A.IP,
-					flow.Key.A.Port,
-					flow.Key.B.IP,
-					flow.Key.B.Port,
-					flow.PacketCount,
-					flow.Bytes,
-					direction,
-				)
 
-				fmt.Printf(
-					"TCP | Src Port: %d | Dst Port: %d | Header: %d | Payload: %d bytes\n",
-					tcp.SourcePort,
-					tcp.DestinationPort,
-					tcp.HeaderLength,
-					len(tcp.Payload),
-				)
-				
-				if len(tcp.Payload) > 0 {
-					fmt.Printf("Payload bytes: %x\n", tcp.Payload)
-				}
+			sourceIP = ipv4.SourceIP.String()
+			destinationIP = ipv4.DestinationIP.String()
+			protocol = ipv4.Protocol
+			ipHeaderLength = int(ipv4.HeaderLength)
+			ipTotalLength = int(ipv4.TotalLength)
+
+		case 0x86dd: // IPv6
+			ipv6, err := pcap.ParseIPv6(packet.Data[14:])
+			if err != nil {
+				log.Println("IPv6 parsing failed:", err)
+				continue
 			}
+
+			sourceIP = ipv6.SourceIP.String()
+			destinationIP = ipv6.DestinationIP.String()
+			protocol = ipv6.NextHeader
+			ipHeaderLength = 40
+			ipTotalLength = 40 + int(ipv6.PayloadLength)
+
+		default:
+			// Ignore unsupported Ethernet types.
+			continue
 		}
+
+		if protocol == 6 {
+			// TCP processing goes here.
+		}
+
 	}
 
 	fmt.Printf("\nTotal packets: %d\n", packetNumber)
