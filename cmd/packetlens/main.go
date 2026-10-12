@@ -105,6 +105,113 @@ func main() {
 
 		if protocol == 6 {
 			// TCP processing goes here.
+
+			ipStart := 14
+			ipEnd := ipStart + ipTotalLength
+
+			if ipEnd > len(packet.Data) || ipEnd < ipStart+ipHeaderLength {
+				log.Println("Invalid IP packet length")
+				continue
+			}
+
+			tcpStart := ipStart + ipHeaderLength
+			tcpData := packet.Data[tcpStart:ipEnd]
+
+			tcp, err := pcap.ParseTCP(tcpData)
+			if err != nil {
+				log.Println("TCP parsing failed:", err)
+				continue
+			}
+
+			if len(tcp.Payload) > 0 &&
+				(tcp.SourcePort == 443 || tcp.DestinationPort == 443) {
+				fmt.Printf(
+					"TLS DEBUG | SrcPort: %d | DstPort: %d | First bytes: % x\n",
+					tcp.SourcePort,
+					tcp.DestinationPort,
+					tcp.Payload[:min(12, len(tcp.Payload))],
+				)
+			}
+
+			fmt.Printf(
+				"TCP | Src Port: %d | Dst Port: %d | Payload: %d bytes\n",
+				tcp.SourcePort,
+				tcp.DestinationPort,
+				len(tcp.Payload),
+			)
+
+			source := pcap.Endpoint{
+				IP:   sourceIP,
+				Port: tcp.SourcePort,
+			}
+
+			destination := pcap.Endpoint{
+				IP:   destinationIP,
+				Port: tcp.DestinationPort,
+			}
+
+			flow, direction, isNew := tracker.Track(
+				source,
+				destination,
+				protocol,
+				uint64(packet.CapturedLength),
+			)
+
+			streamKey := pcap.TCPStreamKey{
+				Flow:      flow.Key,
+				Direction: direction,
+			}
+
+			syn := tcp.Flags&0x02 != 0
+
+			reassembled := streamTracker.Add(
+				streamKey,
+				tcp.SequenceNumber,
+				syn,
+				tcp.Payload,
+			)
+
+			
+if !reportedTLS[streamKey] &&
+len(reassembled) >= 9 &&
+reassembled[0] == 0x16 &&
+reassembled[5] == 0x01 {
+
+hostname, err := pcap.ParseTLSClientHello(reassembled)
+
+if err != nil {
+	if err.Error() != "incomplete TLS record" {
+		fmt.Printf("TLS parsing error: %v\n", err)
+		reportedTLS[streamKey] = true
+	}
+	// Incomplete record: try again when more TCP data arrives.
+} else {
+	if hostname != "" {
+		fmt.Printf("TLS ClientHello | SNI: %s\n", hostname)
+	} else {
+		fmt.Println("TLS ClientHello detected, but no SNI hostname found")
+	}
+
+	reportedTLS[streamKey] = true
+}
+}
+
+
+			if isNew {
+				fmt.Println("NEW FLOW")
+			}
+
+			fmt.Printf(
+				"Flow | %s:%d ↔ %s:%d | Packets: %d | Bytes: %d | Direction: %d\n",
+				flow.Key.A.IP,
+				flow.Key.A.Port,
+				flow.Key.B.IP,
+				flow.Key.B.Port,
+				flow.PacketCount,
+				flow.Bytes,
+				direction,
+			)
+
 		}
 
 	}
