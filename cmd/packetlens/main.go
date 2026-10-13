@@ -27,6 +27,7 @@ func main() {
 	tracker := pcap.NewFlowTracker()
 	streamTracker := pcap.NewTCPStreamTracker()
 	reportedTLS := make(map[pcap.TCPStreamKey]bool)
+	hostnameCounts := make(map[string]int)
 
 	for {
 		packet, err := reader.NextPacket()
@@ -171,31 +172,29 @@ func main() {
 				tcp.Payload,
 			)
 
-			
-if !reportedTLS[streamKey] &&
-len(reassembled) >= 9 &&
-reassembled[0] == 0x16 &&
-reassembled[5] == 0x01 {
+			if !reportedTLS[streamKey] &&
+				len(reassembled) >= 9 &&
+				reassembled[0] == 0x16 &&
+				reassembled[5] == 0x01 {
 
-hostname, err := pcap.ParseTLSClientHello(reassembled)
+				hostname, err := pcap.ParseTLSClientHello(reassembled)
 
-if err != nil {
-	if err.Error() != "incomplete TLS record" {
-		fmt.Printf("TLS parsing error: %v\n", err)
-		reportedTLS[streamKey] = true
-	}
-	// Incomplete record: try again when more TCP data arrives.
-} else {
-	if hostname != "" {
-		fmt.Printf("TLS ClientHello | SNI: %s\n", hostname)
-	} else {
-		fmt.Println("TLS ClientHello detected, but no SNI hostname found")
-	}
+				if err != nil {
+					if err.Error() != "incomplete TLS record" {
+						fmt.Printf("TLS parsing error: %v\n", err)
+						reportedTLS[streamKey] = true
+					}
+				} else {
+					if hostname != "" {
+						hostnameCounts[hostname]++
+						fmt.Printf("TLS ClientHello | SNI: %s\n", hostname)
+					} else {
+						fmt.Println("TLS ClientHello detected, but no SNI hostname found")
+					}
 
-	reportedTLS[streamKey] = true
-}
-}
-
+					reportedTLS[streamKey] = true
+				}
+			}
 
 			if isNew {
 				fmt.Println("NEW FLOW")
@@ -217,4 +216,12 @@ if err != nil {
 	}
 
 	fmt.Printf("\nTotal packets: %d\n", packetNumber)
+	fmt.Println("\nUnique Hostnames")
+	fmt.Println("------------------------------")
+
+	for hostname, count := range hostnameCounts {
+		fmt.Printf("%-40s %d connections\n", hostname, count)
+	}
+
+	fmt.Printf("\nTotal unique hostnames: %d\n", len(hostnameCounts))
 }
