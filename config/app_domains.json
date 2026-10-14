@@ -1,0 +1,42 @@
+
+{
+    "rules": [
+      {
+        "domain": "cursor.sh",
+        "application": "Cursor"
+      },
+      {
+        "domain": "google.com",
+        "application": "Google"
+      },
+      {
+        "domain": "googleapis.com",
+        "application": "Google"
+      },
+      {
+        "domain": "chatgpt.com",
+        "application": "ChatGPT"
+      },
+      {
+        "domain": "openai.com",
+        "application": "OpenAI"
+      },
+      {
+        "domain": "wix.com",
+        "application": "Wix"
+      },
+      {
+        "domain": "wixstatic.com",
+        "application": "Wix"
+      },
+      {
+        "domain": "parastorage.com",
+        "application": "Wix"
+      },
+      {
+        "domain": "linkedin.com",
+        "application": "LinkedIn"
+      }
+    ]
+  }
+  

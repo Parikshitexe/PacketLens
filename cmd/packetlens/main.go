@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"sort"
 
 	"github.com/Parikshitexe/packetlens/internal/pcap"
 )
@@ -12,6 +13,13 @@ import (
 func main() {
 	if len(os.Args) < 2 {
 		log.Fatal("usage: packetlens <pcap-file>")
+	}
+
+	classifier, err := pcap.LoadApplicationClassifier(
+		"config/app_domains.json",
+	)
+	if err != nil {
+		log.Fatalf("Failed to load application rules: %v", err)
 	}
 
 	filename := os.Args[1]
@@ -124,16 +132,6 @@ func main() {
 				continue
 			}
 
-			if len(tcp.Payload) > 0 &&
-				(tcp.SourcePort == 443 || tcp.DestinationPort == 443) {
-				fmt.Printf(
-					"TLS DEBUG | SrcPort: %d | DstPort: %d | First bytes: % x\n",
-					tcp.SourcePort,
-					tcp.DestinationPort,
-					tcp.Payload[:min(12, len(tcp.Payload))],
-				)
-			}
-
 			fmt.Printf(
 				"TCP | Src Port: %d | Dst Port: %d | Payload: %d bytes\n",
 				tcp.SourcePort,
@@ -216,12 +214,76 @@ func main() {
 	}
 
 	fmt.Printf("\nTotal packets: %d\n", packetNumber)
-	fmt.Println("\nUnique Hostnames")
-	fmt.Println("------------------------------")
 
-	for hostname, count := range hostnameCounts {
-		fmt.Printf("%-40s %d connections\n", hostname, count)
+	fmt.Println("\nUnique Hostnames")
+	fmt.Println("---------------------------------------------")
+
+	type HostnameStat struct {
+		Hostname    string
+		Connections int
 	}
 
-	fmt.Printf("\nTotal unique hostnames: %d\n", len(hostnameCounts))
+	stats := make([]HostnameStat, 0, len(hostnameCounts))
+
+	for hostname, count := range hostnameCounts {
+		stats = append(stats, HostnameStat{
+			Hostname:    hostname,
+			Connections: count,
+		})
+	}
+
+	sort.Slice(stats, func(i, j int) bool {
+		if stats[i].Connections == stats[j].Connections {
+			return stats[i].Hostname < stats[j].Hostname
+		}
+		return stats[i].Connections > stats[j].Connections
+	})
+
+	for _, stat := range stats {
+		fmt.Printf("%-40s %d connections\n",
+			stat.Hostname,
+			stat.Connections,
+		)
+	}
+
+	fmt.Printf("\nTotal unique hostnames: %d\n", len(stats))
+
+	applicationCounts := make(map[string]int)
+
+	for hostname, count := range hostnameCounts {
+		application := classifier.ClassifyHostname(hostname)
+		applicationCounts[application] += count
+	}
+
+	fmt.Println("\nApplication Summary")
+	fmt.Println("---------------------------------------------")
+
+	type ApplicationStat struct {
+		Name        string
+		Connections int
+	}
+
+	appStats := make([]ApplicationStat, 0, len(applicationCounts))
+
+	for name, count := range applicationCounts {
+		appStats = append(appStats, ApplicationStat{
+			Name:        name,
+			Connections: count,
+		})
+	}
+
+	sort.Slice(appStats, func(i, j int) bool {
+		if appStats[i].Connections == appStats[j].Connections {
+			return appStats[i].Name < appStats[j].Name
+		}
+		return appStats[i].Connections > appStats[j].Connections
+	})
+
+	for _, stat := range appStats {
+		fmt.Printf("%-20s %d connections\n",
+			stat.Name,
+			stat.Connections,
+		)
+	}
+
 }
