@@ -255,6 +255,20 @@ func main() {
 		applicationCounts[application] += count
 	}
 
+	fmt.Println("\nUnknown Hostnames")
+	fmt.Println("---------------------------------------------")
+
+	unknownCount := 0
+
+	for hostname, count := range hostnameCounts {
+		if classifier.ClassifyHostname(hostname) == "Unknown" {
+			fmt.Printf("%-40s %d observed streams\n", hostname, count)
+			unknownCount += count
+		}
+	}
+
+	fmt.Printf("Unknown hostname entries: %d\n", unknownCount)
+
 	fmt.Println("\nApplication Summary")
 	fmt.Println("---------------------------------------------")
 

@@ -78,16 +78,43 @@ func (t *TCPStreamTracker) Add(
 	stream.data = append(stream.data, payload...)
 	stream.nextExpected += uint32(len(payload))
 
-	// Add any pending segment that now fits.
+	
+	// Add pending segments that overlap or begin at nextExpected.
 	for {
-		next, exists := stream.pending[stream.nextExpected]
-		if !exists {
+		var pendingSeq uint32
+		var pendingData []byte
+		found := false
+
+		for seq, data := range stream.pending {
+			end := seq + uint32(len(data))
+
+			// This segment is entirely behind the current position.
+			if end <= stream.nextExpected {
+				delete(stream.pending, seq)
+				continue
+			}
+
+			// Segment overlaps nextExpected or starts exactly there.
+			if seq <= stream.nextExpected {
+				if !found || seq < pendingSeq {
+					pendingSeq = seq
+					pendingData = data
+					found = true
+				}
+			}
+		}
+
+		if !found {
 			break
 		}
 
-		delete(stream.pending, stream.nextExpected)
-		stream.data = append(stream.data, next...)
-		stream.nextExpected += uint32(len(next))
+		delete(stream.pending, pendingSeq)
+
+		overlap := stream.nextExpected - pendingSeq
+		pendingData = pendingData[overlap:]
+
+		stream.data = append(stream.data, pendingData...)
+		stream.nextExpected += uint32(len(pendingData))
 	}
 
 	return stream.data

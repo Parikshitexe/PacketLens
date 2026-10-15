@@ -37,3 +37,21 @@ func TestTCPStreamDuplicate(t *testing.T) {
 		t.Fatalf("duplicate was appended: %q", got)
 	}
 }
+
+
+func TestTCPStreamPendingOverlap(t *testing.T) {
+	tracker := NewTCPStreamTracker()
+	key := TCPStreamKey{}
+
+	tracker.Add(key, 99, true, nil)
+
+	// Segment starts at 103, before the missing bytes arrive.
+	tracker.Add(key, 103, false, []byte("LOWORLD"))
+
+	// HELLO advances nextExpected to 105.
+	got := tracker.Add(key, 100, false, []byte("HELLO"))
+
+	if string(got) != "HELLOWORLD" {
+		t.Fatalf("got %q, want %q", string(got), "HELLOWORLD")
+	}
+}
