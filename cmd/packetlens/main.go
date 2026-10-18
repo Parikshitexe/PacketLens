@@ -1,18 +1,27 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"sort"
 
 	"github.com/Parikshitexe/packetlens/internal/pcap"
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		log.Fatal("usage: packetlens <pcap-file>")
+	inputFile := flag.String("input", "", "Path to the PCAP file")
+	verbose := flag.Bool("verbose", false, "Enable detailed packet logs")
+	output := flag.String("output", "", "Path to write JSON report")
+
+	flag.Parse()
+
+	if *inputFile == "" {
+		flag.Usage()
+		os.Exit(1)
 	}
 
 	classifier, err := pcap.LoadApplicationClassifier(
@@ -22,7 +31,7 @@ func main() {
 		log.Fatalf("Failed to load application rules: %v", err)
 	}
 
-	filename := os.Args[1]
+	filename := *inputFile
 
 	reader, err := pcap.Open(filename)
 	if err != nil {
@@ -56,21 +65,23 @@ func main() {
 			continue
 		}
 
-		fmt.Printf(
-			"Ethernet | Src: %s | Dst: %s | EtherType: 0x%x (%s)\n",
-			ethernet.SourceMAC,
-			ethernet.DestinationMAC,
-			ethernet.EtherType,
-			pcap.ProtocolName(ethernet.EtherType),
-		)
+		if *verbose {
+			fmt.Printf(
+				"Ethernet | Src: %s | Dst: %s | EtherType: 0x%x (%s)\n",
+				ethernet.SourceMAC,
+				ethernet.DestinationMAC,
+				ethernet.EtherType,
+				pcap.ProtocolName(ethernet.EtherType),
+			)
 
-		fmt.Printf(
-			"Packet #%d | Time: %s | Captured: %d bytes | Original: %d bytes\n",
-			packetNumber,
-			packet.Timestamp.Format("15:04:05.000000"),
-			packet.CapturedLength,
-			packet.OriginalLength,
-		)
+			fmt.Printf(
+				"Packet #%d | Time: %s | Captured: %d bytes | Original: %d bytes\n",
+				packetNumber,
+				packet.Timestamp.Format("15:04:05.000000"),
+				packet.CapturedLength,
+				packet.OriginalLength,
+			)
+		}
 
 		var (
 			sourceIP       string
@@ -132,12 +143,14 @@ func main() {
 				continue
 			}
 
-			fmt.Printf(
-				"TCP | Src Port: %d | Dst Port: %d | Payload: %d bytes\n",
-				tcp.SourcePort,
-				tcp.DestinationPort,
-				len(tcp.Payload),
-			)
+			if *verbose {
+				fmt.Printf(
+					"TCP | Src Port: %d | Dst Port: %d | Payload: %d bytes\n",
+					tcp.SourcePort,
+					tcp.DestinationPort,
+					len(tcp.Payload),
+				)
+			}
 
 			source := pcap.Endpoint{
 				IP:   sourceIP,
@@ -185,7 +198,7 @@ func main() {
 				} else {
 					if hostname != "" {
 						hostnameCounts[hostname]++
-						fmt.Printf("TLS ClientHello | SNI: %s\n", hostname)
+						//fmt.Printf("TLS ClientHello | SNI: %s\n", hostname)
 					} else {
 						fmt.Println("TLS ClientHello detected, but no SNI hostname found")
 					}
@@ -194,20 +207,22 @@ func main() {
 				}
 			}
 
-			if isNew {
-				fmt.Println("NEW FLOW")
-			}
+			if *verbose {
+				if isNew {
+					fmt.Println("NEW FLOW")
+				}
 
-			fmt.Printf(
-				"Flow | %s:%d ↔ %s:%d | Packets: %d | Bytes: %d | Direction: %d\n",
-				flow.Key.A.IP,
-				flow.Key.A.Port,
-				flow.Key.B.IP,
-				flow.Key.B.Port,
-				flow.PacketCount,
-				flow.Bytes,
-				direction,
-			)
+				fmt.Printf(
+					"Flow | %s:%d ↔ %s:%d | Packets: %d | Bytes: %d | Direction: %d\n",
+					flow.Key.A.IP,
+					flow.Key.A.Port,
+					flow.Key.B.IP,
+					flow.Key.B.Port,
+					flow.PacketCount,
+					flow.Bytes,
+					direction,
+				)
+			}
 
 		}
 
@@ -240,7 +255,7 @@ func main() {
 	})
 
 	for _, stat := range stats {
-		fmt.Printf("%-40s %d connections\n",
+		fmt.Printf("%-40s %d observations\n",
 			stat.Hostname,
 			stat.Connections,
 		)
@@ -294,10 +309,48 @@ func main() {
 	})
 
 	for _, stat := range appStats {
-		fmt.Printf("%-20s %d connections\n",
+		fmt.Printf("%-20s %d observations\n",
 			stat.Name,
 			stat.Connections,
 		)
+	}
+	if *output != "" {
+		hostnameReports := make([]HostnameReport, 0, len(stats))
+
+		for _, stat := range stats {
+			hostnameReports = append(hostnameReports, HostnameReport{
+				Hostname:     stat.Hostname,
+				Observations: stat.Connections,
+				Application:  classifier.ClassifyHostname(stat.Hostname),
+			})
+		}
+
+		applicationReports := make(
+			[]ApplicationReport,
+			0,
+			len(appStats),
+		)
+
+		for _, stat := range appStats {
+			applicationReports = append(applicationReports, ApplicationReport{
+				Name:         stat.Name,
+				Observations: stat.Connections,
+			})
+		}
+
+		report := PacketLensReport{
+			InputFile:       filepath.Base(filename),
+			TotalPackets:    packetNumber,
+			UniqueHostnames: len(stats),
+			Hostnames:       hostnameReports,
+			Applications:    applicationReports,
+		}
+
+		if err := WriteJSONReport(*output, report); err != nil {
+			log.Fatalf("Failed to write JSON report: %v", err)
+		}
+
+		fmt.Printf("\nJSON report written to %s\n", *output)
 	}
 
 }

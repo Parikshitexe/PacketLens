@@ -1,0 +1,178 @@
+{
+  "input_file": "traffic_2.pcap",
+  "total_packets": 17387,
+  "unique_hostnames": 29,
+  "hostnames": [
+    {
+      "hostname": "static.parastorage.com",
+      "observations": 12,
+      "application": "Wix"
+    },
+    {
+      "hostname": "static.wixstatic.com",
+      "observations": 6,
+      "application": "Wix"
+    },
+    {
+      "hostname": "bundler-velo.parastorage.com",
+      "observations": 4,
+      "application": "Wix"
+    },
+    {
+      "hostname": "api2.cursor.sh",
+      "observations": 3,
+      "application": "Cursor"
+    },
+    {
+      "hostname": "browser.sentry-cdn.com",
+      "observations": 3,
+      "application": "Unknown"
+    },
+    {
+      "hostname": "accounts.google.com",
+      "observations": 2,
+      "application": "Google"
+    },
+    {
+      "hostname": "content-autofill.googleapis.com",
+      "observations": 2,
+      "application": "Google"
+    },
+    {
+      "hostname": "frog.wix.com",
+      "observations": 2,
+      "application": "Wix"
+    },
+    {
+      "hostname": "siteassets.parastorage.com",
+      "observations": 2,
+      "application": "Wix"
+    },
+    {
+      "hostname": "ws.chatgpt.com",
+      "observations": 2,
+      "application": "ChatGPT"
+    },
+    {
+      "hostname": "www.wix.com",
+      "observations": 2,
+      "application": "Wix"
+    },
+    {
+      "hostname": "a.nel.cloudflare.com",
+      "observations": 1,
+      "application": "Unknown"
+    },
+    {
+      "hostname": "ad.doubleclick.net",
+      "observations": 1,
+      "application": "Unknown"
+    },
+    {
+      "hostname": "bat.bing.com",
+      "observations": 1,
+      "application": "Unknown"
+    },
+    {
+      "hostname": "beacons.gcp.gvt2.com",
+      "observations": 1,
+      "application": "Unknown"
+    },
+    {
+      "hostname": "brand-assets.capterra.com",
+      "observations": 1,
+      "application": "Unknown"
+    },
+    {
+      "hostname": "bzrcdn.openai.com",
+      "observations": 1,
+      "application": "OpenAI"
+    },
+    {
+      "hostname": "cdn.mgln.ai",
+      "observations": 1,
+      "application": "Unknown"
+    },
+    {
+      "hostname": "mail.google.com",
+      "observations": 1,
+      "application": "Google"
+    },
+    {
+      "hostname": "manage.wix.com",
+      "observations": 1,
+      "application": "Wix"
+    },
+    {
+      "hostname": "o4511336518320128.ingest.us.sentry.io",
+      "observations": 1,
+      "application": "Unknown"
+    },
+    {
+      "hostname": "panorama.wixapps.net",
+      "observations": 1,
+      "application": "Unknown"
+    },
+    {
+      "hostname": "s.yimg.com",
+      "observations": 1,
+      "application": "Unknown"
+    },
+    {
+      "hostname": "snap.licdn.com",
+      "observations": 1,
+      "application": "Unknown"
+    },
+    {
+      "hostname": "static.ads-twitter.com",
+      "observations": 1,
+      "application": "Unknown"
+    },
+    {
+      "hostname": "tzm.protechts.net",
+      "observations": 1,
+      "application": "Unknown"
+    },
+    {
+      "hostname": "video.wixstatic.com",
+      "observations": 1,
+      "application": "Wix"
+    },
+    {
+      "hostname": "wix.com",
+      "observations": 1,
+      "application": "Wix"
+    },
+    {
+      "hostname": "www.googletagmanager.com",
+      "observations": 1,
+      "application": "Unknown"
+    }
+  ],
+  "applications": [
+    {
+      "name": "Wix",
+      "observations": 31
+    },
+    {
+      "name": "Unknown",
+      "observations": 16
+    },
+    {
+      "name": "Google",
+      "observations": 5
+    },
+    {
+      "name": "Cursor",
+      "observations": 3
+    },
+    {
+      "name": "ChatGPT",
+      "observations": 2
+    },
+    {
+      "name": "OpenAI",
+      "observations": 1
+    }
+  ]
+}
