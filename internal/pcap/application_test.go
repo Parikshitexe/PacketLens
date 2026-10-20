@@ -21,6 +21,10 @@ func TestClassifyHostname(t *testing.T) {
 		{"www.wix.com", "Wix"},
 		{"notgoogle.com", "Unknown"},
 		{"unknown.example", "Unknown"},
+		{"google.com", "Google"},
+		{"evilgoogle.com", "Unknown"},
+		{"fakecursor.sh", "Unknown"},
+		{"sub.example.google.com", "Google"},
 	}
 
 	for _, tt := range tests {
