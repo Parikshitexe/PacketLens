@@ -28,6 +28,59 @@ func formatEndpoint(ep pcap.Endpoint) string {
 	return fmt.Sprintf("%s:%d", ep.IP, ep.Port)
 }
 
+func buildDNSReport(stats *pcap.DNSStats) DNSReport {
+	report := DNSReport{
+		Queries:       stats.Queries,
+		Responses:     stats.Responses,
+		QueryNames:    make([]DNSNameCountReport, 0, len(stats.QueryNames)),
+		ResponseCodes: make([]DNSResponseCodeReport, 0, len(stats.ResponseCodes)),
+		Resolutions:   make([]DNSResolutionReport, 0, len(stats.Resolutions)),
+	}
+
+	for name, count := range stats.QueryNames {
+		report.QueryNames = append(report.QueryNames, DNSNameCountReport{
+			Name:  name,
+			Count: count,
+		})
+	}
+	sort.Slice(report.QueryNames, func(i, j int) bool {
+		if report.QueryNames[i].Count == report.QueryNames[j].Count {
+			return report.QueryNames[i].Name < report.QueryNames[j].Name
+		}
+		return report.QueryNames[i].Count > report.QueryNames[j].Count
+	})
+
+	for code, count := range stats.ResponseCodes {
+		report.ResponseCodes = append(report.ResponseCodes, DNSResponseCodeReport{
+			Code:  pcap.DNSResponseCodeName(code),
+			Count: count,
+		})
+	}
+	sort.Slice(report.ResponseCodes, func(i, j int) bool {
+		if report.ResponseCodes[i].Count == report.ResponseCodes[j].Count {
+			return report.ResponseCodes[i].Code < report.ResponseCodes[j].Code
+		}
+		return report.ResponseCodes[i].Count > report.ResponseCodes[j].Count
+	})
+
+	for name, ipSet := range stats.Resolutions {
+		ips := make([]string, 0, len(ipSet))
+		for ip := range ipSet {
+			ips = append(ips, ip)
+		}
+		sort.Strings(ips)
+		report.Resolutions = append(report.Resolutions, DNSResolutionReport{
+			Name: name,
+			IPs:  ips,
+		})
+	}
+	sort.Slice(report.Resolutions, func(i, j int) bool {
+		return report.Resolutions[i].Name < report.Resolutions[j].Name
+	})
+
+	return report
+}
+
 func main() {
 	inputFile := flag.String("input", "", "Path to the PCAP file")
 	verbose := flag.Bool("verbose", false, "Enable detailed packet logs")
@@ -61,6 +114,7 @@ func main() {
 	streamTracker := pcap.NewTCPStreamTracker()
 	reportedTLS := make(map[pcap.TCPStreamKey]bool)
 	hostnameCounts := make(map[string]int)
+	dnsStats := pcap.NewDNSStats()
 
 	for {
 		packet, err := reader.NextPacket()
@@ -279,6 +333,30 @@ func main() {
 				packet.Timestamp,
 			)
 
+			if udp.SourcePort == 53 || udp.DestinationPort == 53 {
+				dnsMsg, err := pcap.ParseDNS(udp.Payload)
+				if err != nil {
+					if *verbose {
+						fmt.Printf("DNS parsing skipped: %v\n", err)
+					}
+				} else {
+					dnsStats.Observe(dnsMsg)
+					if *verbose {
+						kind := "query"
+						if dnsMsg.IsResponse {
+							kind = "response"
+						}
+						name := ""
+						if len(dnsMsg.Questions) > 0 {
+							name = dnsMsg.Questions[0].Name
+						} else if len(dnsMsg.Answers) > 0 {
+							name = dnsMsg.Answers[0].Name
+						}
+						fmt.Printf("DNS | %s | %s\n", kind, name)
+					}
+				}
+			}
+
 			if *verbose {
 				if isNew {
 					fmt.Println("NEW FLOW")
@@ -426,6 +504,43 @@ func main() {
 			stat.Observations,
 		)
 	}
+
+	dnsReport := buildDNSReport(dnsStats)
+
+	fmt.Println("\nDNS Summary")
+	fmt.Println("---------------------------------------------")
+	fmt.Printf("Queries: %d | Responses: %d\n", dnsReport.Queries, dnsReport.Responses)
+	if dnsReport.Queries == 0 && dnsReport.Responses == 0 {
+		fmt.Println("No DNS (UDP/53) activity observed in this capture.")
+	} else {
+		if len(dnsReport.QueryNames) > 0 {
+			fmt.Println("Top query names:")
+			limit := len(dnsReport.QueryNames)
+			if limit > 15 {
+				limit = 15
+			}
+			for _, q := range dnsReport.QueryNames[:limit] {
+				fmt.Printf("  %-40s %d\n", q.Name, q.Count)
+			}
+		}
+		if len(dnsReport.ResponseCodes) > 0 {
+			fmt.Println("Response codes:")
+			for _, rc := range dnsReport.ResponseCodes {
+				fmt.Printf("  %-12s %d\n", rc.Code, rc.Count)
+			}
+		}
+		if len(dnsReport.Resolutions) > 0 {
+			fmt.Println("Name to IP resolutions:")
+			limit := len(dnsReport.Resolutions)
+			if limit > 15 {
+				limit = 15
+			}
+			for _, res := range dnsReport.Resolutions[:limit] {
+				fmt.Printf("  %-40s %v\n", res.Name, res.IPs)
+			}
+		}
+	}
+
 	if *output != "" {
 		hostnameReports := make([]HostnameReport, 0, len(stats))
 
@@ -474,6 +589,7 @@ func main() {
 			Connections:     connectionReports,
 			Hostnames:       hostnameReports,
 			Applications:    applicationReports,
+			DNS:             dnsReport,
 		}
 
 		if err := WriteJSONReport(*output, report); err != nil {

@@ -45,6 +45,19 @@ func TestWriteJSONReport(t *testing.T) {
 			{Name: "Example", Observations: 3},
 			{Name: "Unknown", Observations: 1},
 		},
+		DNS: DNSReport{
+			Queries:   2,
+			Responses: 1,
+			QueryNames: []DNSNameCountReport{
+				{Name: "example.com", Count: 2},
+			},
+			ResponseCodes: []DNSResponseCodeReport{
+				{Code: "NOERROR", Count: 1},
+			},
+			Resolutions: []DNSResolutionReport{
+				{Name: "example.com", IPs: []string{"93.184.216.34"}},
+			},
+		},
 	}
 
 	if err := WriteJSONReport(path, report); err != nil {
@@ -103,5 +116,13 @@ func TestWriteJSONReport(t *testing.T) {
 
 	if len(got.Applications) != 2 {
 		t.Errorf("got %d applications, want 2", len(got.Applications))
+	}
+
+	if got.DNS.Queries != 2 || got.DNS.Responses != 1 {
+		t.Errorf("dns queries/responses = %d/%d, want 2/1", got.DNS.Queries, got.DNS.Responses)
+	}
+
+	if len(got.DNS.Resolutions) != 1 || got.DNS.Resolutions[0].Name != "example.com" {
+		t.Errorf("dns resolutions not preserved: %+v", got.DNS.Resolutions)
 	}
 }

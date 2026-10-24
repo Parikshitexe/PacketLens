@@ -33,6 +33,31 @@ type ConnectionReport struct {
 	Application  string  `json:"application,omitempty"`
 }
 
+type DNSNameCountReport struct {
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+}
+
+type DNSResponseCodeReport struct {
+	Code  string `json:"code"`
+	Count int    `json:"count"`
+}
+
+type DNSResolutionReport struct {
+	Name string   `json:"name"`
+	IPs  []string `json:"ips"`
+}
+
+// DNSReport summarizes DNS activity observed on UDP port 53.
+// An empty/zero report is normal when the PCAP contains no DNS.
+type DNSReport struct {
+	Queries       int                     `json:"queries"`
+	Responses     int                     `json:"responses"`
+	QueryNames    []DNSNameCountReport    `json:"query_names"`
+	ResponseCodes []DNSResponseCodeReport `json:"response_codes"`
+	Resolutions   []DNSResolutionReport   `json:"resolutions"`
+}
+
 type PacketLensReport struct {
 	InputFile       string              `json:"input_file"`
 	TotalPackets    int                 `json:"total_packets"`
@@ -41,6 +66,7 @@ type PacketLensReport struct {
 	Connections     []ConnectionReport  `json:"connections"`
 	Hostnames       []HostnameReport    `json:"hostnames"`
 	Applications    []ApplicationReport `json:"applications"`
+	DNS             DNSReport           `json:"dns"`
 }
 
 func WriteJSONReport(path string, report PacketLensReport) error {

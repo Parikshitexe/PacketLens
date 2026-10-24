@@ -6,6 +6,7 @@ type UDPPacket struct {
 	SourcePort      uint16
 	DestinationPort uint16
 	Length          uint16
+	Payload         []byte
 }
 
 func ParseUDP(data []byte) (*UDPPacket, error) {
@@ -21,6 +22,7 @@ func ParseUDP(data []byte) (*UDPPacket, error) {
 		SourcePort:      sourcePort,
 		DestinationPort: destinationPort,
 		Length:          length,
+		Payload:         data[8:],
 	}
 
 	return packet, nil
