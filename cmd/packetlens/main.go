@@ -8,9 +8,25 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/Parikshitexe/packetlens/internal/pcap"
 )
+
+func transportProtocolName(protocol uint8) string {
+	switch protocol {
+	case 6:
+		return "TCP"
+	case 17:
+		return "UDP"
+	default:
+		return fmt.Sprintf("%d", protocol)
+	}
+}
+
+func formatEndpoint(ep pcap.Endpoint) string {
+	return fmt.Sprintf("%s:%d", ep.IP, ep.Port)
+}
 
 func main() {
 	inputFile := flag.String("input", "", "Path to the PCAP file")
@@ -167,6 +183,7 @@ func main() {
 				destination,
 				protocol,
 				uint64(packet.CapturedLength),
+				packet.Timestamp,
 			)
 
 			streamKey := pcap.TCPStreamKey{
@@ -229,6 +246,42 @@ func main() {
 	}
 
 	fmt.Printf("\nTotal packets: %d\n", packetNumber)
+
+	flows := tracker.Flows()
+	sort.Slice(flows, func(i, j int) bool {
+		if flows[i].Bytes == flows[j].Bytes {
+			a := formatEndpoint(flows[i].Key.A)
+			b := formatEndpoint(flows[j].Key.A)
+			return a < b
+		}
+		return flows[i].Bytes > flows[j].Bytes
+	})
+
+	fmt.Println("\nConnections")
+	fmt.Println("---------------------------------------------")
+	fmt.Printf("Total flows: %d\n", len(flows))
+
+	const maxConnectionsDisplay = 20
+	displayCount := len(flows)
+	if displayCount > maxConnectionsDisplay {
+		displayCount = maxConnectionsDisplay
+	}
+
+	for i := 0; i < displayCount; i++ {
+		flow := flows[i]
+		fmt.Printf(
+			"%s ↔ %s | %s | packets=%d bytes=%d duration=%s\n",
+			formatEndpoint(flow.Key.A),
+			formatEndpoint(flow.Key.B),
+			transportProtocolName(flow.Key.Protocol),
+			flow.PacketCount,
+			flow.Bytes,
+			flow.Duration().Round(time.Millisecond),
+		)
+	}
+	if len(flows) > maxConnectionsDisplay {
+		fmt.Printf("... and %d more flows\n", len(flows)-maxConnectionsDisplay)
+	}
 
 	fmt.Println("\nUnique Hostnames")
 	fmt.Println("---------------------------------------------")
@@ -338,10 +391,26 @@ func main() {
 			})
 		}
 
+		connectionReports := make([]ConnectionReport, 0, len(flows))
+		for _, flow := range flows {
+			connectionReports = append(connectionReports, ConnectionReport{
+				EndpointA:    formatEndpoint(flow.Key.A),
+				EndpointB:    formatEndpoint(flow.Key.B),
+				Protocol:     transportProtocolName(flow.Key.Protocol),
+				PacketCount:  flow.PacketCount,
+				Bytes:        flow.Bytes,
+				FirstSeen:    flow.FirstSeen.UTC().Format(time.RFC3339Nano),
+				LastSeen:     flow.LastSeen.UTC().Format(time.RFC3339Nano),
+				DurationSecs: flow.Duration().Seconds(),
+			})
+		}
+
 		report := PacketLensReport{
 			InputFile:       filepath.Base(filename),
 			TotalPackets:    packetNumber,
+			TotalFlows:      len(flows),
 			UniqueHostnames: len(stats),
+			Connections:     connectionReports,
 			Hostnames:       hostnameReports,
 			Applications:    applicationReports,
 		}

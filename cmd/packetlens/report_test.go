@@ -13,7 +13,20 @@ func TestWriteJSONReport(t *testing.T) {
 	report := PacketLensReport{
 		InputFile:       `captures\traffic.pcap`,
 		TotalPackets:    100,
+		TotalFlows:      1,
 		UniqueHostnames: 2,
+		Connections: []ConnectionReport{
+			{
+				EndpointA:    "10.0.0.1:50000",
+				EndpointB:    "10.0.0.2:443",
+				Protocol:     "TCP",
+				PacketCount:  10,
+				Bytes:        1500,
+				FirstSeen:    "2024-01-01T12:00:00Z",
+				LastSeen:     "2024-01-01T12:00:05Z",
+				DurationSecs: 5,
+			},
+		},
 		Hostnames: []HostnameReport{
 			{
 				Hostname:     "example.com",
@@ -56,6 +69,18 @@ func TestWriteJSONReport(t *testing.T) {
 
 	if got.UniqueHostnames != 2 {
 		t.Errorf("unique_hostnames = %d, want 2", got.UniqueHostnames)
+	}
+
+	if got.TotalFlows != 1 {
+		t.Errorf("total_flows = %d, want 1", got.TotalFlows)
+	}
+
+	if len(got.Connections) != 1 {
+		t.Fatalf("got %d connections, want 1", len(got.Connections))
+	}
+
+	if got.Connections[0].Protocol != "TCP" {
+		t.Errorf("connection protocol = %q, want TCP", got.Connections[0].Protocol)
 	}
 
 	if len(got.Hostnames) != 2 {
