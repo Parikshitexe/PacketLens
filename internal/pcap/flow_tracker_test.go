@@ -79,3 +79,36 @@ func TestFlow_DurationZeroWhenMissingTimes(t *testing.T) {
 		t.Errorf("Duration = %v, want 0", flow.Duration())
 	}
 }
+
+func TestFlowTracker_UDPSeparateFromTCP(t *testing.T) {
+	tracker := NewFlowTracker()
+	ts := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	a := Endpoint{IP: "10.0.0.1", Port: 53000}
+	b := Endpoint{IP: "10.0.0.2", Port: 53}
+
+	tcpFlow, _, _ := tracker.Track(a, b, 6, 100, ts)
+	udpFlow, _, isNewUDP := tracker.Track(a, b, 17, 60, ts)
+
+	if !isNewUDP {
+		t.Fatal("UDP should create a separate flow from TCP even with same endpoints")
+	}
+	if tcpFlow == udpFlow {
+		t.Fatal("TCP and UDP flows must be distinct")
+	}
+	if udpFlow.Key.Protocol != 17 {
+		t.Errorf("UDP flow protocol = %d, want 17", udpFlow.Key.Protocol)
+	}
+
+	// Reverse UDP direction still maps to the same UDP flow.
+	_, _, isNewReverse := tracker.Track(b, a, 17, 40, ts.Add(time.Second))
+	if isNewReverse {
+		t.Fatal("reverse UDP packet should not create a new flow")
+	}
+	if udpFlow.PacketCount != 2 || udpFlow.Bytes != 100 {
+		t.Errorf("UDP flow packets=%d bytes=%d, want 2 and 100", udpFlow.PacketCount, udpFlow.Bytes)
+	}
+	if len(tracker.Flows()) != 2 {
+		t.Fatalf("Flows() len = %d, want 2 (one TCP, one UDP)", len(tracker.Flows()))
+	}
+}

@@ -139,21 +139,24 @@ func main() {
 			continue
 		}
 
-		if protocol == 6 {
-			// TCP processing goes here.
+		// Only TCP (6) and UDP (17) enter the flow table for v1.
+		if protocol != 6 && protocol != 17 {
+			continue
+		}
 
-			ipStart := 14
-			ipEnd := ipStart + ipTotalLength
+		ipStart := 14
+		ipEnd := ipStart + ipTotalLength
 
-			if ipEnd > len(packet.Data) || ipEnd < ipStart+ipHeaderLength {
-				log.Println("Invalid IP packet length")
-				continue
-			}
+		if ipEnd > len(packet.Data) || ipEnd < ipStart+ipHeaderLength {
+			log.Println("Invalid IP packet length")
+			continue
+		}
 
-			tcpStart := ipStart + ipHeaderLength
-			tcpData := packet.Data[tcpStart:ipEnd]
+		transportData := packet.Data[ipStart+ipHeaderLength : ipEnd]
 
-			tcp, err := pcap.ParseTCP(tcpData)
+		switch protocol {
+		case 6: // TCP
+			tcp, err := pcap.ParseTCP(transportData)
 			if err != nil {
 				log.Println("TCP parsing failed:", err)
 				continue
@@ -172,7 +175,6 @@ func main() {
 				IP:   sourceIP,
 				Port: tcp.SourcePort,
 			}
-
 			destination := pcap.Endpoint{
 				IP:   destinationIP,
 				Port: tcp.DestinationPort,
@@ -215,7 +217,6 @@ func main() {
 				} else {
 					if hostname != "" {
 						hostnameCounts[hostname]++
-						//fmt.Printf("TLS ClientHello | SNI: %s\n", hostname)
 					} else {
 						fmt.Println("TLS ClientHello detected, but no SNI hostname found")
 					}
@@ -241,6 +242,55 @@ func main() {
 				)
 			}
 
+		case 17: // UDP
+			udp, err := pcap.ParseUDP(transportData)
+			if err != nil {
+				log.Println("UDP parsing failed:", err)
+				continue
+			}
+
+			if *verbose {
+				fmt.Printf(
+					"UDP | Src Port: %d | Dst Port: %d | Length: %d\n",
+					udp.SourcePort,
+					udp.DestinationPort,
+					udp.Length,
+				)
+			}
+
+			source := pcap.Endpoint{
+				IP:   sourceIP,
+				Port: udp.SourcePort,
+			}
+			destination := pcap.Endpoint{
+				IP:   destinationIP,
+				Port: udp.DestinationPort,
+			}
+
+			flow, direction, isNew := tracker.Track(
+				source,
+				destination,
+				protocol,
+				uint64(packet.CapturedLength),
+				packet.Timestamp,
+			)
+
+			if *verbose {
+				if isNew {
+					fmt.Println("NEW FLOW")
+				}
+
+				fmt.Printf(
+					"Flow | %s:%d ↔ %s:%d | Packets: %d | Bytes: %d | Direction: %d\n",
+					flow.Key.A.IP,
+					flow.Key.A.Port,
+					flow.Key.B.IP,
+					flow.Key.B.Port,
+					flow.PacketCount,
+					flow.Bytes,
+					direction,
+				)
+			}
 		}
 
 	}
