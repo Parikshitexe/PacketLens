@@ -29,6 +29,8 @@ type ConnectionReport struct {
 	FirstSeen    string  `json:"first_seen"`
 	LastSeen     string  `json:"last_seen"`
 	DurationSecs float64 `json:"duration_secs"`
+	Hostname     string  `json:"hostname,omitempty"`
+	Application  string  `json:"application,omitempty"`
 }
 
 type PacketLensReport struct {

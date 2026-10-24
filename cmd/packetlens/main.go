@@ -217,6 +217,10 @@ func main() {
 				} else {
 					if hostname != "" {
 						hostnameCounts[hostname]++
+						flow.SetIdentity(
+							hostname,
+							classifier.ClassifyHostname(hostname),
+						)
 					} else {
 						fmt.Println("TLS ClientHello detected, but no SNI hostname found")
 					}
@@ -319,14 +323,19 @@ func main() {
 
 	for i := 0; i < displayCount; i++ {
 		flow := flows[i]
+		identity := ""
+		if flow.Hostname != "" {
+			identity = fmt.Sprintf(" | %s (%s)", flow.Hostname, flow.Application)
+		}
 		fmt.Printf(
-			"%s ↔ %s | %s | packets=%d bytes=%d duration=%s\n",
+			"%s ↔ %s | %s | packets=%d bytes=%d duration=%s%s\n",
 			formatEndpoint(flow.Key.A),
 			formatEndpoint(flow.Key.B),
 			transportProtocolName(flow.Key.Protocol),
 			flow.PacketCount,
 			flow.Bytes,
 			flow.Duration().Round(time.Millisecond),
+			identity,
 		)
 	}
 	if len(flows) > maxConnectionsDisplay {
@@ -337,30 +346,30 @@ func main() {
 	fmt.Println("---------------------------------------------")
 
 	type HostnameStat struct {
-		Hostname    string
-		Connections int
+		Hostname     string
+		Observations int
 	}
 
 	stats := make([]HostnameStat, 0, len(hostnameCounts))
 
 	for hostname, count := range hostnameCounts {
 		stats = append(stats, HostnameStat{
-			Hostname:    hostname,
-			Connections: count,
+			Hostname:     hostname,
+			Observations: count,
 		})
 	}
 
 	sort.Slice(stats, func(i, j int) bool {
-		if stats[i].Connections == stats[j].Connections {
+		if stats[i].Observations == stats[j].Observations {
 			return stats[i].Hostname < stats[j].Hostname
 		}
-		return stats[i].Connections > stats[j].Connections
+		return stats[i].Observations > stats[j].Observations
 	})
 
 	for _, stat := range stats {
 		fmt.Printf("%-40s %d observations\n",
 			stat.Hostname,
-			stat.Connections,
+			stat.Observations,
 		)
 	}
 
@@ -391,30 +400,30 @@ func main() {
 	fmt.Println("---------------------------------------------")
 
 	type ApplicationStat struct {
-		Name        string
-		Connections int
+		Name         string
+		Observations int
 	}
 
 	appStats := make([]ApplicationStat, 0, len(applicationCounts))
 
 	for name, count := range applicationCounts {
 		appStats = append(appStats, ApplicationStat{
-			Name:        name,
-			Connections: count,
+			Name:         name,
+			Observations: count,
 		})
 	}
 
 	sort.Slice(appStats, func(i, j int) bool {
-		if appStats[i].Connections == appStats[j].Connections {
+		if appStats[i].Observations == appStats[j].Observations {
 			return appStats[i].Name < appStats[j].Name
 		}
-		return appStats[i].Connections > appStats[j].Connections
+		return appStats[i].Observations > appStats[j].Observations
 	})
 
 	for _, stat := range appStats {
 		fmt.Printf("%-20s %d observations\n",
 			stat.Name,
-			stat.Connections,
+			stat.Observations,
 		)
 	}
 	if *output != "" {
@@ -423,7 +432,7 @@ func main() {
 		for _, stat := range stats {
 			hostnameReports = append(hostnameReports, HostnameReport{
 				Hostname:     stat.Hostname,
-				Observations: stat.Connections,
+				Observations: stat.Observations,
 				Application:  classifier.ClassifyHostname(stat.Hostname),
 			})
 		}
@@ -437,7 +446,7 @@ func main() {
 		for _, stat := range appStats {
 			applicationReports = append(applicationReports, ApplicationReport{
 				Name:         stat.Name,
-				Observations: stat.Connections,
+				Observations: stat.Observations,
 			})
 		}
 
@@ -452,6 +461,8 @@ func main() {
 				FirstSeen:    flow.FirstSeen.UTC().Format(time.RFC3339Nano),
 				LastSeen:     flow.LastSeen.UTC().Format(time.RFC3339Nano),
 				DurationSecs: flow.Duration().Seconds(),
+				Hostname:     flow.Hostname,
+				Application:  flow.Application,
 			})
 		}
 

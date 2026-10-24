@@ -80,6 +80,25 @@ func TestFlow_DurationZeroWhenMissingTimes(t *testing.T) {
 	}
 }
 
+func TestFlow_SetIdentityFirstWins(t *testing.T) {
+	flow := &Flow{}
+
+	flow.SetIdentity("", "Ignored")
+	if flow.Hostname != "" || flow.Application != "" {
+		t.Fatal("empty hostname must not set identity")
+	}
+
+	flow.SetIdentity("api.example.com", "Example")
+	if flow.Hostname != "api.example.com" || flow.Application != "Example" {
+		t.Fatalf("identity = %q / %q", flow.Hostname, flow.Application)
+	}
+
+	flow.SetIdentity("other.example.com", "Other")
+	if flow.Hostname != "api.example.com" || flow.Application != "Example" {
+		t.Fatal("later SetIdentity must not overwrite existing hostname")
+	}
+}
+
 func TestFlowTracker_UDPSeparateFromTCP(t *testing.T) {
 	tracker := NewFlowTracker()
 	ts := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)

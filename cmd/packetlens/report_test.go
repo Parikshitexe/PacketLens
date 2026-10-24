@@ -25,6 +25,8 @@ func TestWriteJSONReport(t *testing.T) {
 				FirstSeen:    "2024-01-01T12:00:00Z",
 				LastSeen:     "2024-01-01T12:00:05Z",
 				DurationSecs: 5,
+				Hostname:     "example.com",
+				Application:  "Example",
 			},
 		},
 		Hostnames: []HostnameReport{
@@ -81,6 +83,14 @@ func TestWriteJSONReport(t *testing.T) {
 
 	if got.Connections[0].Protocol != "TCP" {
 		t.Errorf("connection protocol = %q, want TCP", got.Connections[0].Protocol)
+	}
+
+	if got.Connections[0].Hostname != "example.com" {
+		t.Errorf("connection hostname = %q, want example.com", got.Connections[0].Hostname)
+	}
+
+	if got.Connections[0].Application != "Example" {
+		t.Errorf("connection application = %q, want Example", got.Connections[0].Application)
 	}
 
 	if len(got.Hostnames) != 2 {

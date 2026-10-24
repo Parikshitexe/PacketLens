@@ -26,6 +26,10 @@ type Flow struct {
 	Bytes       uint64
 	FirstSeen   time.Time
 	LastSeen    time.Time
+	// Hostname and Application are optional identity from TLS SNI (or later
+	// sources). Empty means unknown for this flow.
+	Hostname    string
+	Application string
 }
 
 // Duration is the time between the first and last packet observed for this
@@ -36,6 +40,16 @@ func (f *Flow) Duration() time.Duration {
 		return 0
 	}
 	return f.LastSeen.Sub(f.FirstSeen)
+}
+
+// SetIdentity records the first non-empty hostname (and its application label)
+// on this flow. Later calls do not overwrite an existing hostname.
+func (f *Flow) SetIdentity(hostname, application string) {
+	if hostname == "" || f.Hostname != "" {
+		return
+	}
+	f.Hostname = hostname
+	f.Application = application
 }
 
 func NewFlowKey(
